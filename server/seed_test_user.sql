@@ -4,7 +4,7 @@
 INSERT INTO users (name, email, employee_code, password, contact_no, role, department, team_leader)
 VALUES (
     'Test Employee', 
-    'test@officegate.com', 
+    'test@faithhours.com', 
     'E1001', 
     'pass123', 
     '9876543210', 

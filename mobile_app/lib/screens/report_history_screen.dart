@@ -1,23 +1,25 @@
 import 'package:flutter/material.dart';
 import '../models/report.dart';
 import '../services/report_service.dart';
+import '../widgets/skeleton_loader.dart';
 import 'report_detail_screen.dart';
 
 class ReportHistoryScreen extends StatelessWidget {
   final String employeeCode;
-  ReportHistoryScreen({required this.employeeCode});
+  final bool hideAppBar;
+  ReportHistoryScreen({required this.employeeCode, this.hideAppBar = false});
 
   final ReportService _reportService = ReportService();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('My Report History'), automaticallyImplyLeading: false),
+      appBar: hideAppBar ? null : AppBar(title: Text('My Report History'), automaticallyImplyLeading: false),
       body: FutureBuilder<List<Report>>(
         future: _reportService.getEmployeeReports(employeeCode),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+            return ListSkeleton();
           }
           if (snapshot.hasError) {
             return Center(child: Column(

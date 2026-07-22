@@ -22,7 +22,7 @@ async function importUsers() {
             department: row['Department'],
             team_leader: row['Team Leader'],
             password: 'pass123', // Default password
-            email: `${code.toLowerCase()}@officegate.com`, // Generated email
+            email: `${code.toLowerCase()}@faithhours.com`, // Generated email
             role: 'Employee'
           });
         }

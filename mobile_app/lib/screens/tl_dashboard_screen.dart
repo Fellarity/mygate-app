@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/report.dart';
 import '../services/report_service.dart';
+import '../widgets/skeleton_loader.dart';
 import 'report_detail_screen.dart';
 
 class TLDashboardScreen extends StatefulWidget {
@@ -74,7 +75,7 @@ class _TLDashboardScreenState extends State<TLDashboardScreen> {
         ],
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? ListSkeleton()
           : _pendingReports.isEmpty
               ? Center(
                   child: Column(

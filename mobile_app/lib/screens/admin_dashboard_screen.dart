@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/report.dart';
 import '../services/export_service.dart';
+import '../widgets/skeleton_loader.dart';
+import 'manage_employees_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   @override
@@ -16,6 +18,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _totalEmployees = 0;
   int _pendingApprovals = 0;
   List<Report> _allReports = [];
+  List<Map<String, dynamic>> _allProjects = [];
 
   @override
   void initState() {
@@ -32,13 +35,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       // 2. Get pending reports count
       final pendingCount = await supabase.from('reports').select('id').eq('status', 'Pending').count(CountOption.exact);
 
-      // 3. Get recent reports for export
-      final reportsData = await supabase.from('reports').select().order('date', ascending: false).limit(100);
+      // 3. Get all approved reports (no limit) for the export pivot table
+      final reportsData = await supabase.from('reports').select().eq('status', 'Approved');
+
+      // 4. Get all projects
+      final projectsData = await supabase.from('projects').select('project_number, description');
 
       setState(() {
         _totalEmployees = userCount.count ?? 0;
         _pendingApprovals = pendingCount.count ?? 0;
         _allReports = (reportsData as List).map((r) => Report.fromJson(r)).toList();
+        _allProjects = List<Map<String, dynamic>>.from(projectsData);
         _isLoading = false;
       });
     } catch (e) {
@@ -48,11 +55,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _handleExport() async {
-    String? path = await _exportService.exportReportsToCsv(_allReports);
+    String? path = await _exportService.exportReportsToCsv(_allReports, _allProjects);
     if (path != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Reports exported to: $path')),
-      );
+      if (path.startsWith("ERROR:")) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save: $path'), backgroundColor: Colors.red),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Reports exported to: $path'), backgroundColor: Colors.green),
+        );
+      }
     }
   }
 
@@ -61,7 +74,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       appBar: AppBar(title: Text('Admin Dashboard'), automaticallyImplyLeading: false),
       body: _isLoading 
-        ? Center(child: CircularProgressIndicator())
+        ? ListSkeleton()
         : Padding(
             padding: EdgeInsets.all(16),
             child: Column(
@@ -75,8 +88,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Divider(),
                 ListTile(
                   leading: Icon(Icons.file_download, color: Colors.green),
-                  title: Text("Export Approved Reports (CSV)"),
-                  subtitle: Text("Generate payroll-ready data"),
+                  title: Text("Export Project Workload Tracking Sheet"),
+                  subtitle: Text("Generate pivot table CSV of all project hours"),
                   onTap: _handleExport,
                 ),
                 ListTile(
@@ -84,7 +97,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   title: Text("Manage Employee Profiles"),
                   subtitle: Text("Edit roles and team leaders"),
                   onTap: () {
-                    // Future implementation: User Management Screen
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ManageEmployeesScreen(tlName: '', tlCode: '', isAdmin: true),
+                      ),
+                    );
                   },
                 ),
                 Spacer(),

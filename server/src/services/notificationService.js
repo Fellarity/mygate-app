@@ -62,7 +62,7 @@ function sendReminder(employee, io) {
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: employee.email,
-    subject: 'OfficeGate: Daily Report Reminder',
+    subject: 'Faith Hours: Daily Report Reminder',
     text: msg
   };
 

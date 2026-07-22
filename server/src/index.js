@@ -38,7 +38,7 @@ app.use('/api/reports', reportRoutes);
 // Start Compliance Cron Jobs
 initCron(io);
 
-app.get('/', (req, res) => res.send('OfficeGate API Running (SQLite)'));
+app.get('/', (req, res) => res.send('Faith Hours API Running (SQLite)'));
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));

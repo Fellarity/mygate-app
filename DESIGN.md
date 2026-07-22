@@ -1,7 +1,7 @@
-# OfficeGate - Feature Mapping & Technical Design
+# Faith Hours - Feature Mapping & Technical Design
 
 ## 1. Project Overview
-OfficeGate is a cross-platform mobile application (built with Flutter) designed for internal office management. It facilitates employee reporting, visitor tracking, and resource management using an in-house server backend.
+Faith Hours is a cross-platform mobile application (built with Flutter) designed for internal office management. It facilitates employee reporting, visitor tracking, and resource management using an in-house server backend.
 
 ## 2. Core Features
 
@@ -25,20 +25,6 @@ Employees must submit their daily work progress.
 - **View History:** List of previous submissions and their current status (Pending/Approved/Rejected).
 - **TL Dashboard:** Review interface for Team Leaders to monitor team progress and action pending approvals.
 
-### 2.2 Visitor Management
-- **Invite Guests:** Employees can generate QR codes or invite codes for visitors.
-- **Entry Alerts:** Notification when a guest arrives at the gate.
-- **Check-in/Out Log:** Digital record of office visitors.
-
-### 2.3 Meeting Room Booking
-- **Resource Grid:** Visual view of available rooms and time slots.
-- **Instant Booking:** Reservation of rooms for meetings.
-- **Conflict Prevention:** Real-time availability checks.
-
-### 2.4 Notice Board
-- **Announcements:** Sticky or feed-based notices from Management/HR.
-- **Categories:** Urgent, General, Social, Events.
-
 ## 3. User Roles & Permissions
 - **Employee:** Basic access to reporting, visitor invites, and room booking.
 - **Team Leader:** Access to team reports and department-level visitor logs.
@@ -58,5 +44,4 @@ Employees must submit their daily work progress.
 1. **Phase 1: Foundation (Current)** - Feature mapping and design approval.
 2. **Phase 2: Backend Development** - Setup in-house server, database schema, and Auth APIs.
 3. **Phase 3: Core Reporting Feature** - Develop the Flutter form and reporting dashboard.
-4. **Phase 4: Secondary Features** - Implement Notice Board, Visitor Management, and Room Booking.
 5. **Phase 5: Internal Testing & Deployment** - Beta testing within the office.
