@@ -194,6 +194,18 @@ class _HomeScreenState extends State<HomeScreen> {
     final screens = <Widget>[];
     final navItems = <BottomNavigationBarItem>[];
 
+    // Everyone gets Report Form
+    screens.add(
+      ReportFormScreen(
+        employeeCode: profile['employee_code'] ?? 'N/A', 
+        assignedTL: _resolvedTLName,
+        assignedTLCode: _resolvedTLCode,
+        empName: profile['name'] ?? 'Unknown',
+        contactNo: profile['contact_no'] ?? 'N/A',
+      )
+    );
+    navItems.add(BottomNavigationBarItem(icon: Icon(Icons.add_task), label: 'Report'));
+
     if (isTL) {
       // TLs and Admins manage teams. Pass employee_code for team filtering.
       screens.add(ManageEmployeesScreen(
@@ -201,18 +213,6 @@ class _HomeScreenState extends State<HomeScreen> {
         tlCode: profile['employee_code'],
       ));
       navItems.add(BottomNavigationBarItem(icon: Icon(Icons.groups), label: 'My Team'));
-    } else {
-      // Standard Employees fill out reports
-      screens.add(
-        ReportFormScreen(
-          employeeCode: profile['employee_code'] ?? 'N/A', 
-          assignedTL: _resolvedTLName,
-          assignedTLCode: _resolvedTLCode,
-          empName: profile['name'] ?? 'Unknown',
-          contactNo: profile['contact_no'] ?? 'N/A',
-        )
-      );
-      navItems.add(BottomNavigationBarItem(icon: Icon(Icons.add_task), label: 'Report'));
     }
 
     // Everyone gets History
