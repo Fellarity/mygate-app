@@ -153,6 +153,24 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
 
+      final dateToCheck = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+      if (_submittedDates.containsKey(dateToCheck)) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Report Already Submitted', style: TextStyle(color: Colors.indigo.shade900)),
+            content: Text('You have already submitted a report for this date.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('OK', style: TextStyle(color: Colors.indigo)),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
       final report = Report(
         employeeCode: _employeeCode,
         empName: _empName,
