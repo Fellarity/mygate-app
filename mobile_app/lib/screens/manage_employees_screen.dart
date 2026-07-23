@@ -85,6 +85,33 @@ class _ManageEmployeesScreenState extends State<ManageEmployeesScreen> {
     }
   }
 
+  Future<void> _removeFromTeam(Map<String, dynamic> emp) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remove from Team?'),
+        content: Text('Are you sure you want to remove ${emp['name']} from your team?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Remove', style: TextStyle(color: Colors.orange)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _supabase.from('users').update({'team_leader': ''}).eq('id', emp['id']);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Employee removed from team')));
+        _fetchEmployees();
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
+    }
+  }
+
   Future<void> _toggleBlockEmployee(Map<String, dynamic> emp) async {
     final bool currentlyBlocked = emp['is_blocked'] ?? false;
     
@@ -382,6 +409,12 @@ class _ManageEmployeesScreenState extends State<ManageEmployeesScreen> {
                                 icon: Icon(Icons.delete, color: Colors.red),
                                 onPressed: () => _deleteEmployee(emp['employee_code']),
                                 tooltip: 'Delete Permanently',
+                              ),
+                            if (!widget.isAdmin)
+                              IconButton(
+                                icon: Icon(Icons.person_remove, color: Colors.orange),
+                                onPressed: () => _removeFromTeam(emp),
+                                tooltip: 'Remove from Team',
                               ),
                             if (emp['role'] == 'Team Leader')
                               TextButton.icon(

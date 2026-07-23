@@ -182,8 +182,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Resolve the TL's employee_code and name from the users table
     final tlInfo = await _resolveTLInfo(profile['team_leader'] ?? '');
-    _resolvedTLCode = tlInfo['code']!;
-    _resolvedTLName = tlInfo['name']!;
+    if (tlInfo['code']!.isEmpty) {
+      _resolvedTLCode = profile['employee_code'];
+      _resolvedTLName = profile['name'];
+    } else {
+      _resolvedTLCode = tlInfo['code']!;
+      _resolvedTLName = tlInfo['name']!;
+    }
     profile['team_leader_name'] = _resolvedTLName;
 
     final screens = <Widget>[];
