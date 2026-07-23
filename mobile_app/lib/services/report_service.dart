@@ -9,8 +9,8 @@ class ReportService {
       await supabase.from('reports').insert(report.toJson());
       
       // Check if email notifications are enabled
-      final settings = await supabase.from('app_settings').select('email_notifications').eq('id', 1).maybeSingle();
-      if (settings != null && settings['email_notifications'] == true) {
+      final settings = await supabase.from('app_settings').select('setting_value').eq('setting_key', 'notifications').maybeSingle();
+      if (settings != null && settings['setting_value'] != null && settings['setting_value']['email_enabled'] == true) {
         // Fetch TL Email
         final tlUser = await supabase.from('users').select('email').eq('employee_code', report.teamLeaderCode).maybeSingle();
         if (tlUser != null && tlUser['email'] != null) {
@@ -84,8 +84,8 @@ class ReportService {
       }).eq('id', reportId);
       
       // Check if email notifications are enabled
-      final settings = await supabase.from('app_settings').select('email_notifications').eq('id', 1).maybeSingle();
-      if (settings != null && settings['email_notifications'] == true) {
+      final settings = await supabase.from('app_settings').select('setting_value').eq('setting_key', 'notifications').maybeSingle();
+      if (settings != null && settings['setting_value'] != null && settings['setting_value']['email_enabled'] == true) {
         // Fetch Report to get Employee Code
         final report = await supabase.from('reports').select('employee_code, date, project_number, hours_calculate').eq('id', reportId).maybeSingle();
         if (report != null) {

@@ -14,8 +14,8 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Check if email notifications are enabled
-    const { data: settings } = await supabase.from('app_settings').select('email_notifications').eq('id', 1).maybeSingle()
-    if (!settings || settings.email_notifications !== true) {
+    const { data: settings } = await supabase.from('app_settings').select('setting_value').eq('setting_key', 'notifications').maybeSingle()
+    if (!settings || !settings.setting_value || settings.setting_value.email_enabled !== true) {
       return new Response(JSON.stringify({ message: "Email notifications disabled globally" }), { status: 200 })
     }
 
