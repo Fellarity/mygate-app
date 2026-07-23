@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/report.dart';
 import '../services/report_service.dart';
 import '../widgets/skeleton_loader.dart';
@@ -102,6 +103,57 @@ class _TLDashboardScreenState extends State<TLDashboardScreen> {
                     );
                   },
                 ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          final _projectController = TextEditingController();
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text('Add New Project'),
+              content: TextField(
+                controller: _projectController,
+                decoration: InputDecoration(
+                  labelText: 'Project Number',
+                  hintText: 'e.g. PRJ-1001',
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final newProject = _projectController.text.trim();
+                    if (newProject.isNotEmpty) {
+                      try {
+                        await Supabase.instance.client
+                            .from('projects')
+                            .insert({'project_number': newProject});
+                        if (mounted) Navigator.pop(context);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Project added successfully')),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error adding project: \$e')),
+                          );
+                        }
+                      }
+                    }
+                  },
+                  child: Text('Add'),
+                ),
+              ],
+            ),
+          );
+        },
+        child: Icon(Icons.add_task),
+        tooltip: 'Add New Project',
+      ),
     );
   }
 }
