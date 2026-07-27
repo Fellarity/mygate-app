@@ -13,6 +13,7 @@ class ReportFormScreen extends StatefulWidget {
   final String assignedTLCode;
   final String empName;
   final String contactNo;
+  final Report? existingReport;
 
   ReportFormScreen({
     required this.employeeCode, 
@@ -20,6 +21,7 @@ class ReportFormScreen extends StatefulWidget {
     required this.assignedTLCode,
     required this.empName,
     required this.contactNo,
+    this.existingReport,
   });
 
   @override
@@ -38,14 +40,15 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
   String _department = '';
   String _subtitle = '';
   String _workingDetails = '';
-  TimeOfDay _startTime = TimeOfDay(hour: 9, minute: 0);
-  TimeOfDay _endTime = TimeOfDay(hour: 18, minute: 0);
   late String _teamLeader;
   late String _teamLeaderCode;
-  String? _projectNumber;
+  
   List<String> _projectOptions = [];
   Map<DateTime, String> _submittedDates = {};
   DateTime? _registrationDate;
+
+  // Multiple Projects
+  List<Map<String, dynamic>> _projectBlocks = [];
 
   @override
   void initState() {
@@ -55,9 +58,60 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
     _teamLeaderCode = widget.assignedTLCode;
     _empName = widget.empName;
     _contactNo = widget.contactNo;
+    
+    if (widget.existingReport != null) {
+      final r = widget.existingReport!;
+      _contactNo = r.contactNo;
+      _workingDetails = r.workingDetails;
+      try {
+        _selectedDate = DateTime.parse(r.date);
+      } catch(_) {}
+      
+      if (r.projects.isNotEmpty) {
+        for (var p in r.projects) {
+          TimeOfDay? s = _parseTimeOfDay(p.startTime);
+          TimeOfDay? e = _parseTimeOfDay(p.endTime);
+          _projectBlocks.add({
+            'projectNumber': p.projectNumber,
+            'startTime': s ?? TimeOfDay(hour: 9, minute: 0),
+            'endTime': e ?? TimeOfDay(hour: 18, minute: 0),
+          });
+        }
+      } else {
+        // Fallback for legacy single-project reports
+        _projectBlocks.add({
+          'projectNumber': r.projectNumber,
+          'startTime': _parseTimeOfDay(r.startTime) ?? TimeOfDay(hour: 9, minute: 0),
+          'endTime': _parseTimeOfDay(r.endTime) ?? TimeOfDay(hour: 18, minute: 0),
+        });
+      }
+    } else {
+      // Default empty project block
+      _projectBlocks.add({
+        'projectNumber': null,
+        'startTime': TimeOfDay(hour: 9, minute: 0),
+        'endTime': TimeOfDay(hour: 18, minute: 0),
+      });
+    }
+
     _fetchProjects();
     _fetchSubmittedDates();
     _fetchUserData();
+  }
+
+  TimeOfDay? _parseTimeOfDay(String s) {
+    if (s.isEmpty) return null;
+    try {
+      final parts = s.split(':');
+      if (parts.length >= 2) {
+        int h = int.parse(parts[0].replaceAll(RegExp(r'[^0-9]'), ''));
+        int m = int.parse(parts[1].replaceAll(RegExp(r'[^0-9]'), ''));
+        if (s.toLowerCase().contains('pm') && h < 12) h += 12;
+        if (s.toLowerCase().contains('am') && h == 12) h = 0;
+        return TimeOfDay(hour: h, minute: m);
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<void> _fetchUserData() async {
@@ -76,12 +130,12 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
             if (user['department'] != null) {
               _department = user['department'].toString();
             }
-            _subtitle = 'N/A'; // Defaulting to N/A as subtitle is not in the schema
+            _subtitle = 'N/A';
           });
         }
       }
     } catch (e) {
-      print('Error fetching registration date: $e');
+      print('Error fetching user data: $e');
     }
   }
 
@@ -89,23 +143,29 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
     try {
       final response = await Supabase.instance.client
           .from('reports')
-          .select('date, project_number')
+          .select('id, date, project_number')
           .eq('employee_code', _employeeCode);
           
       if (response != null) {
         final Map<DateTime, String> dates = {};
         for (var row in response) {
+          // If we are editing, don't count the current report's date as "already submitted" preventing submission
+          if (widget.existingReport != null && widget.existingReport!.id == row['id']) {
+            continue;
+          }
           if (row['date'] != null) {
              try {
                final d = DateTime.parse(row['date']);
-               final proj = row['project_number']?.toString() ?? '';
+               final proj = row['project_number']?.toString() ?? 'Multiple';
                dates[DateTime(d.year, d.month, d.day)] = proj;
              } catch(_) {}
           }
         }
-        setState(() {
-          _submittedDates = dates;
-        });
+        if (mounted) {
+          setState(() {
+            _submittedDates = dates;
+          });
+        }
       }
     } catch (e) {
       print('Error fetching submitted dates: $e');
@@ -139,13 +199,31 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
     }
   }
 
-  String _calculateHours() {
-    final start = _startTime.hour + _startTime.minute / 60.0;
-    final end = _endTime.hour + _endTime.minute / 60.0;
-    double diff = end - start;
-    if (diff < 0) diff += 24; // Handle overnight shifts
+  String _calculateProjectHoursStr(TimeOfDay start, TimeOfDay end) {
+    final startH = start.hour + start.minute / 60.0;
+    final endH = end.hour + end.minute / 60.0;
+    double diff = endH - startH;
+    if (diff < 0) diff += 24; 
     final int hours = diff.floor();
     final int mins = ((diff - hours) * 60).round();
+    return '$hours:${mins.toString().padLeft(2, '0')}';
+  }
+
+  double _calculateProjectHoursDouble(TimeOfDay start, TimeOfDay end) {
+    final startH = start.hour + start.minute / 60.0;
+    final endH = end.hour + end.minute / 60.0;
+    double diff = endH - startH;
+    if (diff < 0) diff += 24;
+    return diff;
+  }
+
+  String _calculateTotalHours() {
+    double total = 0;
+    for (var block in _projectBlocks) {
+      total += _calculateProjectHoursDouble(block['startTime'], block['endTime']);
+    }
+    final int hours = total.floor();
+    final int mins = ((total - hours) * 60).round();
     return '$hours:${mins.toString().padLeft(2, '0')}';
   }
 
@@ -171,7 +249,18 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
         return;
       }
 
+      List<ReportProject> finalProjects = [];
+      for (var block in _projectBlocks) {
+        finalProjects.add(ReportProject(
+          projectNumber: block['projectNumber'] ?? '',
+          startTime: (block['startTime'] as TimeOfDay).format(context),
+          endTime: (block['endTime'] as TimeOfDay).format(context),
+          hours: _calculateProjectHoursStr(block['startTime'], block['endTime']),
+        ));
+      }
+
       final report = Report(
+        id: widget.existingReport?.id,
         employeeCode: _employeeCode,
         empName: _empName,
         contactNo: _contactNo,
@@ -179,42 +268,152 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
         department: _department,
         subtitle: _subtitle,
         workingDetails: _workingDetails,
-        startTime: _startTime.format(context),
-        endTime: _endTime.format(context),
-        hoursCalculate: _calculateHours(),
+        hoursCalculate: _calculateTotalHours(),
         teamLeader: _teamLeader,
         teamLeaderCode: _teamLeaderCode,
-        projectNumber: _projectNumber ?? '',
+        projectNumber: finalProjects.isNotEmpty ? finalProjects.first.projectNumber : '', // fallback
+        projects: finalProjects,
+        status: widget.existingReport != null ? 'Pending' : 'Pending', // Editing resubmits it as pending
       );
 
-      bool success = await _reportService.submitReport(report);
+      bool success;
+      if (widget.existingReport != null) {
+        success = await _reportService.updateReport(report);
+      } else {
+        success = await _reportService.submitReport(report);
+      }
+
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Report submitted to $_teamLeader!')),
+          SnackBar(content: Text('Report ${widget.existingReport != null ? 'updated' : 'submitted'} successfully!')),
         );
-        _formKey.currentState!.reset();
-        setState(() {
-          _employeeCode = widget.employeeCode;
-          _teamLeader = widget.assignedTL;
-          _teamLeaderCode = widget.assignedTLCode;
-          _empName = widget.empName;
-          _contactNo = widget.contactNo;
-          _workingDetails = '';
-          _projectNumber = null;
-          _submittedDates[DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day)] = report.projectNumber;
-        });
+        if (widget.existingReport != null) {
+          Navigator.pop(context, true); // Pop back if editing
+        } else {
+          _formKey.currentState!.reset();
+          setState(() {
+            _workingDetails = '';
+            _projectBlocks = [{
+              'projectNumber': null,
+              'startTime': TimeOfDay(hour: 9, minute: 0),
+              'endTime': TimeOfDay(hour: 18, minute: 0),
+            }];
+            _submittedDates[DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day)] = 'Multiple';
+          });
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error submitting report.')),
+          SnackBar(content: Text('Error saving report.')),
         );
       }
     }
   }
 
+  void _addProjectBlock() {
+    setState(() {
+      _projectBlocks.add({
+        'projectNumber': null,
+        'startTime': TimeOfDay(hour: 9, minute: 0),
+        'endTime': TimeOfDay(hour: 18, minute: 0),
+      });
+    });
+  }
+
+  void _removeProjectBlock(int index) {
+    setState(() {
+      _projectBlocks.removeAt(index);
+    });
+  }
+
+  Widget _buildProjectBlock(int index) {
+    final block = _projectBlocks[index];
+    
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.indigo.shade100),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Project ${index + 1}', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
+              if (_projectBlocks.length > 1)
+                IconButton(
+                  icon: Icon(Icons.close, color: Colors.red.shade400),
+                  onPressed: () => _removeProjectBlock(index),
+                  padding: EdgeInsets.zero,
+                  constraints: BoxConstraints(),
+                )
+            ],
+          ),
+          SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _projectOptions.contains(block['projectNumber']) ? block['projectNumber'] : null,
+            items: _projectOptions.isEmpty
+                ? [DropdownMenuItem(value: null, child: Text('No projects available'))]
+                : _projectOptions
+                    .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                    .toList(),
+            onChanged: _projectOptions.isEmpty ? null : (v) {
+              setState(() => block['projectNumber'] = v);
+            },
+            decoration: InputDecoration(
+              labelText: 'Project Number',
+              prefixIcon: Icon(Icons.work),
+            ),
+            validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+            onSaved: (v) => block['projectNumber'] = v,
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: Icon(Icons.access_time),
+                  label: FittedBox(fit: BoxFit.scaleDown, child: Text("Start: ${(block['startTime'] as TimeOfDay).format(context)}")),
+                  onPressed: () async {
+                    final picked = await showTimePicker(context: context, initialTime: block['startTime']);
+                    if (picked != null) setState(() => block['startTime'] = picked);
+                  },
+                ),
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: Icon(Icons.access_time_filled),
+                  label: FittedBox(fit: BoxFit.scaleDown, child: Text("End: ${(block['endTime'] as TimeOfDay).format(context)}")),
+                  onPressed: () async {
+                    final picked = await showTimePicker(context: context, initialTime: block['endTime']);
+                    if (picked != null) setState(() => block['endTime'] = picked);
+                  },
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Text(
+            "Hours: ${_calculateProjectHoursStr(block['startTime'], block['endTime'])}", 
+            style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+          )
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Daily Work Report'), automaticallyImplyLeading: false),
+      appBar: AppBar(
+        title: Text(widget.existingReport != null ? 'Edit Report' : 'Daily Work Report'), 
+        automaticallyImplyLeading: widget.existingReport != null, // Show back button only when editing
+      ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16.0),
         child: AnimatedGlassCard(
@@ -245,7 +444,7 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
                       ),
                     ),
                   ),
-                  SizedBox(height: 24),
+                  SizedBox(height: 16),
                   TextFormField(
                     initialValue: _empName,
                     readOnly: true,
@@ -256,18 +455,18 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
                       prefixIcon: Icon(Icons.person, color: Colors.indigo),
                     ),
                   ),
-                  SizedBox(height: 24),
+                  SizedBox(height: 16),
                   TextFormField(
                     initialValue: _contactNo,
-                    readOnly: true,
                     decoration: InputDecoration(
                       labelText: 'Contact No.',
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
                       prefixIcon: Icon(Icons.phone, color: Colors.indigo),
                     ),
+                    onChanged: (val) => _contactNo = val,
+                    onSaved: (val) => _contactNo = val ?? '',
+                    validator: (val) => val == null || val.isEmpty ? 'Required' : null,
                   ),
-                  SizedBox(height: 24),
+                  SizedBox(height: 16),
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
@@ -328,7 +527,7 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
                                       : Colors.transparent;
 
                                   if (isFilled && project != null) {
-                                      final p = project.toLowerCase();
+                                      final p = project!.toLowerCase();
                                       if (p == 'holiday') {
                                           bgColor = Colors.blue.shade50;
                                           textColor = Colors.blue.shade700;
@@ -443,80 +642,40 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
                     ],
                   ),
                   SizedBox(height: 24),
-                  TextFormField(
-                    key: ValueKey('dept_$_department'),
-                    initialValue: _department.isEmpty ? 'Loading...' : _department,
-                    readOnly: true,
-                    decoration: InputDecoration(
-                      labelText: 'Department',
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      prefixIcon: Icon(Icons.business, color: Colors.indigo),
-                    ),
+                  
+                  // Projects Section
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("Projects", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+                      TextButton.icon(
+                        icon: Icon(Icons.add),
+                        label: Text("Add Project"),
+                        onPressed: _addProjectBlock,
+                      )
+                    ],
                   ),
+                  SizedBox(height: 8),
+                  
+                  ...List.generate(_projectBlocks.length, (index) => _buildProjectBlock(index)),
+
                   SizedBox(height: 24),
-                  TextFormField(
-                    key: ValueKey('sub_$_subtitle'),
-                    initialValue: _subtitle.isEmpty ? 'Loading...' : _subtitle,
-                    readOnly: true,
-                    decoration: InputDecoration(
-                      labelText: 'Subtitle',
-                      filled: true,
-                      fillColor: Colors.grey.shade100,
-                      prefixIcon: Icon(Icons.topic, color: Colors.indigo),
-                    ),
+                  Text(
+                    "Total Hours: ${_calculateTotalHours()}",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
+                    textAlign: TextAlign.end,
                   ),
-                  SizedBox(height: 24),
-                  DropdownButtonFormField<String>(
-                    value: _projectOptions.contains(_projectNumber) ? _projectNumber : null,
-                    items: _projectOptions.isEmpty
-                        ? [DropdownMenuItem(value: null, child: Text('No projects available'))]
-                        : _projectOptions
-                            .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                            .toList(),
-                    onChanged: _projectOptions.isEmpty ? null : (v) => setState(() => _projectNumber = v),
-                    decoration: InputDecoration(
-                      labelText: 'Project Number',
-                      prefixIcon: Icon(Icons.work),
-                    ),
-                    validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                    onSaved: (v) => _projectNumber = v,
-                  ),
-                  SizedBox(height: 24),
+                  SizedBox(height: 16),
+                  
                   TextFormField(
+                    initialValue: _workingDetails,
                     decoration: InputDecoration(
-                      labelText: 'Working Details',
+                      labelText: 'Working Details (All Projects)',
                       alignLabelWithHint: true,
                     ),
                     maxLines: 4,
                     validator: (v) => v!.isEmpty ? 'Required' : null,
                     onSaved: (v) => _workingDetails = v!,
-                  ),
-                  SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          icon: Icon(Icons.access_time),
-                          label: FittedBox(fit: BoxFit.scaleDown, child: Text("Start: ${_startTime.format(context)}")),
-                          onPressed: () async {
-                            final picked = await showTimePicker(context: context, initialTime: _startTime);
-                            if (picked != null) setState(() => _startTime = picked);
-                          },
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          icon: Icon(Icons.access_time_filled),
-                          label: FittedBox(fit: BoxFit.scaleDown, child: Text("End: ${_endTime.format(context)}")),
-                          onPressed: () async {
-                            final picked = await showTimePicker(context: context, initialTime: _endTime);
-                            if (picked != null) setState(() => _endTime = picked);
-                          },
-                        ),
-                      ),
-                    ],
                   ),
                   SizedBox(height: 32),
                   StaggeredEntry(
@@ -525,7 +684,7 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
                       width: double.infinity,
                       child: MagneticButton(
                         icon: Icons.send,
-                        label: Text('Submit Report', style: TextStyle(fontSize: 18)),
+                        label: Text(widget.existingReport != null ? 'Update Report' : 'Submit Report', style: TextStyle(fontSize: 18)),
                         onPressed: _submit,
                       ),
                     ),

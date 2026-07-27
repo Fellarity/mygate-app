@@ -14,6 +14,7 @@ import 'screens/admin_dashboard_screen.dart';
 import 'screens/manage_employees_screen.dart';
 import 'screens/app_settings_screen.dart';
 import 'providers/notification_provider.dart';
+import 'services/update_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -172,6 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _buildNavigation();
+    UpdateService.checkForUpdate(context);
   }
 
   Future<void> _buildNavigation() async {

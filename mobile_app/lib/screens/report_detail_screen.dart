@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/report.dart';
+import '../services/report_service.dart';
+import 'report_form_screen.dart';
 
 class ReportDetailScreen extends StatelessWidget {
   final Report report;
@@ -36,11 +38,41 @@ class ReportDetailScreen extends StatelessWidget {
             _buildDetailTile(Icons.business, 'Department', report.department),
             
             Divider(height: 32),
-            _buildSectionTitle('Work Details'),
+            _buildSectionTitle('Work Details (Total: ${report.hoursCalculate} hrs)'),
             _buildDetailTile(Icons.calendar_today, 'Date', report.date),
             _buildDetailTile(Icons.topic, 'Subtitle', report.subtitle),
-            _buildDetailTile(Icons.work, 'Project No.', report.projectNumber),
-            _buildDetailTile(Icons.timer, 'Hours', '${report.startTime} - ${report.endTime} (${report.hoursCalculate})'),
+            
+            SizedBox(height: 16),
+            if (report.projects.isNotEmpty) ...[
+              Text('Projects:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+              SizedBox(height: 8),
+              ...report.projects.map((p) => Container(
+                margin: EdgeInsets.only(bottom: 8),
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.indigo.shade100),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.work, size: 16, color: Colors.indigo),
+                        SizedBox(width: 8),
+                        Text(p.projectNumber, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
+                      ],
+                    ),
+                    SizedBox(height: 4),
+                    Text('${p.startTime} - ${p.endTime} (${p.hours} hrs)', style: TextStyle(color: Colors.grey.shade700)),
+                  ],
+                ),
+              )).toList(),
+            ] else ...[
+              _buildDetailTile(Icons.work, 'Project No.', report.projectNumber),
+              _buildDetailTile(Icons.timer, 'Hours', '${report.startTime} - ${report.endTime} (${report.hoursCalculate})'),
+            ],
             
             SizedBox(height: 16),
             Text('Working Details:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
@@ -102,6 +134,78 @@ class ReportDetailScreen extends StatelessWidget {
                 ],
               ),
             ],
+            
+            if (!showReviewActions) ...[
+              SizedBox(height: 40),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: Icon(Icons.edit),
+                      label: Text('Edit'),
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => ReportFormScreen(
+                            employeeCode: report.employeeCode,
+                            assignedTL: report.teamLeader,
+                            assignedTLCode: report.teamLeaderCode,
+                            empName: report.empName,
+                            contactNo: report.contactNo,
+                            existingReport: report,
+                          )),
+                        );
+                        if (result == true) {
+                          Navigator.pop(context, true); // Pop back to history to refresh
+                        }
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 15),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: Icon(Icons.delete),
+                      label: Text('Delete'),
+                      onPressed: () async {
+                        bool confirm = await showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text('Delete Report'),
+                            content: Text('Are you sure you want to delete this report?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancel')),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true), 
+                                child: Text('Delete', style: TextStyle(color: Colors.red)),
+                              ),
+                            ],
+                          ),
+                        ) ?? false;
+                        
+                        if (confirm && report.id != null) {
+                          final success = await ReportService().deleteReport(report.id!);
+                          if (success) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Report deleted.')));
+                            Navigator.pop(context, true);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error deleting report.')));
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 15),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            
             SizedBox(height: 40),
           ],
         ),
@@ -111,8 +215,13 @@ class ReportDetailScreen extends StatelessWidget {
 
   Widget _buildStatusHeader() {
     Color color = Colors.orange;
-    if (report.status == 'Approve' || report.status == 'Approved') color = Colors.green;
-    if (report.status == 'Rejected') color = Colors.red;
+    String statusStr = report.status.toLowerCase();
+    
+    if (statusStr.contains('approve')) {
+      color = Colors.green;
+    } else if (statusStr.contains('reject')) {
+      color = Colors.red;
+    }
 
     return Container(
       padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),

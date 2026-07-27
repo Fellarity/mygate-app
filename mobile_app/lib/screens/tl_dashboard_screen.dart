@@ -96,7 +96,7 @@ class _TLDashboardScreenState extends State<TLDashboardScreen> {
                       margin: EdgeInsets.all(8),
                       child: ListTile(
                         title: Text('${r.empName} - ${r.date}'),
-                        subtitle: Text('${r.projectNumber}: ${r.workingDetails}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text('${r.projects.length > 1 ? 'Multiple Projects' : r.projectNumber}: ${r.workingDetails}', maxLines: 1, overflow: TextOverflow.ellipsis),
                         trailing: Icon(Icons.chevron_right, color: Colors.indigo),
                         onTap: () => _navigateToDetail(r),
                       ),

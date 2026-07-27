@@ -1,3 +1,35 @@
+class ReportProject {
+  final String projectNumber;
+  final String startTime;
+  final String endTime;
+  final String hours;
+
+  ReportProject({
+    required this.projectNumber,
+    required this.startTime,
+    required this.endTime,
+    required this.hours,
+  });
+
+  factory ReportProject.fromJson(Map<String, dynamic> json) {
+    return ReportProject(
+      projectNumber: json['project_number']?.toString() ?? '',
+      startTime: json['start_time']?.toString() ?? '',
+      endTime: json['end_time']?.toString() ?? '',
+      hours: json['hours']?.toString() ?? '0',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'project_number': projectNumber,
+      'start_time': startTime,
+      'end_time': endTime,
+      'hours': hours,
+    };
+  }
+}
+
 class Report {
   final int? id;
   final String employeeCode;
@@ -7,12 +39,18 @@ class Report {
   final String department;
   final String subtitle;
   final String workingDetails;
+  
+  // Legacy fields (kept for backward compatibility with old reports)
   final String startTime;
   final String endTime;
   final String hoursCalculate;
+  final String projectNumber;
+  
+  // New multiple projects list
+  final List<ReportProject> projects;
+
   final String teamLeader;
   final String teamLeaderCode;
-  final String projectNumber;
   final String status;
   final String? tlComments;
 
@@ -25,17 +63,25 @@ class Report {
     required this.department,
     required this.subtitle,
     required this.workingDetails,
-    required this.startTime,
-    required this.endTime,
+    this.startTime = '',
+    this.endTime = '',
     required this.hoursCalculate,
     required this.teamLeader,
     required this.teamLeaderCode,
-    required this.projectNumber,
+    this.projectNumber = '',
+    this.projects = const [],
     this.status = 'Pending',
     this.tlComments,
   });
 
   factory Report.fromJson(Map<String, dynamic> json) {
+    List<ReportProject> parsedProjects = [];
+    if (json['projects'] != null) {
+      if (json['projects'] is List) {
+        parsedProjects = (json['projects'] as List).map((p) => ReportProject.fromJson(p)).toList();
+      }
+    }
+
     return Report(
       id: json['id'],
       employeeCode: json['employee_code']?.toString() ?? 'N/A',
@@ -51,6 +97,7 @@ class Report {
       teamLeader: json['team_leader']?.toString() ?? 'None',
       teamLeaderCode: json['team_leader_code']?.toString() ?? '',
       projectNumber: json['project_number']?.toString() ?? '',
+      projects: parsedProjects,
       status: json['status']?.toString() ?? 'Pending',
       tlComments: json['tl_comments']?.toString(),
     );
@@ -71,6 +118,7 @@ class Report {
       'team_leader': teamLeader,
       'team_leader_code': teamLeaderCode,
       'project_number': projectNumber,
+      'projects': projects.map((p) => p.toJson()).toList(),
       'status': status,
     };
   }

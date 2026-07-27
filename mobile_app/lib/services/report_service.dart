@@ -8,6 +8,9 @@ class ReportService {
     try {
       await supabase.from('reports').insert(report.toJson());
       
+      // Update contact number in users table
+      await supabase.from('users').update({'contact_no': report.contactNo}).eq('employee_code', report.employeeCode);
+
       // Check if email notifications are enabled
       final settings = await supabase.from('app_settings').select('setting_value').eq('setting_key', 'notifications').maybeSingle();
       if (settings != null && settings['setting_value'] != null && settings['setting_value']['email_enabled'] == true) {
@@ -24,23 +27,46 @@ class ReportService {
                 <h3>New Timesheet Submission</h3>
                 <p><strong>Employee:</strong> ${report.empName} (${report.employeeCode})</p>
                 <p><strong>Date:</strong> ${report.date}</p>
-                <p><strong>Project:</strong> ${report.projectNumber}</p>
-                <p><strong>Hours:</strong> ${report.hoursCalculate}</p>
-                <p><strong>Details:</strong> ${report.workingDetails}</p>
+                <p><strong>Total Hours:</strong> ${report.hoursCalculate}</p>
                 <br>
                 <p>Please log in to the App to approve or reject this timesheet.</p>
               '''
             });
             print("Email notification sent to TL");
           } catch (funcErr) {
-            print("Edge function error: \$funcErr");
+            print("Edge function error: $funcErr");
           }
         }
       }
       
       return true;
     } catch (e) {
-      print('Error submitting report: \$e');
+      print('Error submitting report: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateReport(Report report) async {
+    try {
+      if (report.id == null) return false;
+      await supabase.from('reports').update(report.toJson()).eq('id', report.id!);
+      
+      // Update contact number in users table
+      await supabase.from('users').update({'contact_no': report.contactNo}).eq('employee_code', report.employeeCode);
+
+      return true;
+    } catch (e) {
+      print('Error updating report: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteReport(int id) async {
+    try {
+      await supabase.from('reports').delete().eq('id', id);
+      return true;
+    } catch (e) {
+      print('Error deleting report: $e');
       return false;
     }
   }
@@ -87,7 +113,7 @@ class ReportService {
       final settings = await supabase.from('app_settings').select('setting_value').eq('setting_key', 'notifications').maybeSingle();
       if (settings != null && settings['setting_value'] != null && settings['setting_value']['email_enabled'] == true) {
         // Fetch Report to get Employee Code
-        final report = await supabase.from('reports').select('employee_code, date, project_number, hours_calculate').eq('id', reportId).maybeSingle();
+        final report = await supabase.from('reports').select('employee_code, date, hours_calculate').eq('id', reportId).maybeSingle();
         if (report != null) {
           // Fetch Employee Email
           final empUser = await supabase.from('users').select('email, full_name').eq('employee_code', report['employee_code']).maybeSingle();
@@ -95,19 +121,19 @@ class ReportService {
             try {
               await supabase.functions.invoke('send-email', body: {
                 'to': empUser['email'],
-                'subject': 'Timesheet \$status: \${report["date"]}',
+                'subject': 'Timesheet $status: ${report["date"]}',
                 'body': '''
-                  <h3>Timesheet \$status</h3>
-                  <p>Hi \${empUser["full_name"]},</p>
-                  <p>Your timesheet for <strong>\${report["date"]}</strong> on project <strong>\${report["project_number"]}</strong> (\${report["hours_calculate"]} hrs) has been <strong>\$status</strong>.</p>
-                  <p><strong>Team Leader Comments:</strong> \$comments</p>
+                  <h3>Timesheet $status</h3>
+                  <p>Hi ${empUser["full_name"]},</p>
+                  <p>Your timesheet for <strong>${report["date"]}</strong> (${report["hours_calculate"]} hrs) has been <strong>$status</strong>.</p>
+                  <p><strong>Team Leader Comments:</strong> $comments</p>
                   <br>
                   <p>Please log in to the App to view details.</p>
                 '''
               });
               print("Email notification sent to Employee");
             } catch (funcErr) {
-              print("Edge function error: \$funcErr");
+              print("Edge function error: $funcErr");
             }
           }
         }
@@ -115,7 +141,7 @@ class ReportService {
 
       return true;
     } catch (e) {
-      print('Error reviewing report: \$e');
+      print('Error reviewing report: $e');
       return false;
     }
   }
@@ -130,7 +156,7 @@ class ReportService {
           .from('reports')
           .select('hours_calculate')
           .eq('employee_code', employeeCode)
-          .eq('status', 'Approved')
+          .ilike('status', 'approve%') // Supports Approve or Approved
           .gte('date', firstDay)
           .lte('date', lastDay);
       
