@@ -176,10 +176,10 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
     try {
       final response = await Supabase.instance.client
           .from('projects')
-          .select('project_number')
-          .order('project_number', ascending: true);
+          .select('id, project_number')
+          .order('id', ascending: true);
       if (response != null) {
-        final List<String> projects = ['Holiday', 'Idle', 'On leave'];
+        final List<String> projects = ['Holiday', 'Idle', 'On leave', 'C-off', 'Weekly off'];
         for (var row in response) {
           if (row['project_number'] != null && row['project_number'].toString().isNotEmpty) {
             String p = row['project_number'].toString().trim();
