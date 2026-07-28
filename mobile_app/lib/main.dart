@@ -107,10 +107,36 @@ class _AuthWrapperState extends State<AuthWrapper> {
   bool _isLoading = true;
   final _storage = const FlutterSecureStorage();
 
+  late final _authStateSubscription;
+
   @override
   void initState() {
     super.initState();
     _loadSavedSession();
+    _authStateSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+      final AuthChangeEvent event = data.event;
+      final Session? session = data.session;
+      
+      if (event == AuthChangeEvent.passwordRecovery || event == AuthChangeEvent.signedIn) {
+        if (session != null && _userProfile == null) {
+            try {
+              final user = session.user;
+              if (user.email != null) {
+                final profile = await Supabase.instance.client.from('users').select().eq('email', user.email!).single();
+                _handleLogin(profile);
+              }
+            } catch (e) {
+              print('Error fetching profile from session: $e');
+            }
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authStateSubscription.cancel();
+    super.dispose();
   }
 
   Future<void> _loadSavedSession() async {

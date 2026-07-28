@@ -78,6 +78,80 @@ class _SignupScreenState extends State<SignupScreen> {
       setState(() => _isLoading = false);
     }
   }
+  void _showForgotPasswordDialog() {
+    final TextEditingController empIdController = TextEditingController();
+    bool isResetting = false;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Reset Password'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Enter your Employee ID to receive a password reset link.'),
+                  SizedBox(height: 16),
+                  TextField(
+                    controller: empIdController,
+                    decoration: InputDecoration(
+                      labelText: 'Employee ID',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isResetting ? null : () => Navigator.pop(context),
+                  child: Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isResetting ? null : () async {
+                    if (empIdController.text.trim().isEmpty) return;
+                    setState(() => isResetting = true);
+                    try {
+                      final userQuery = await _supabase
+                          .from('users')
+                          .select('email')
+                          .eq('employee_code', empIdController.text.trim())
+                          .maybeSingle();
+
+                      if (userQuery == null || userQuery['email'] == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Employee ID not found or no email associated.')),
+                        );
+                      } else {
+                        await _supabase.auth.resetPasswordForEmail(
+                          userQuery['email'],
+                          redirectTo: 'https://web-ten-nu-62.vercel.app',
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Password reset link sent to your email!')),
+                        );
+                        Navigator.pop(context);
+                      }
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error: $e')),
+                      );
+                    } finally {
+                      if (mounted) setState(() => isResetting = false);
+                    }
+                  },
+                  child: isResetting 
+                      ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) 
+                      : Text('Send Link'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +218,14 @@ class _SignupScreenState extends State<SignupScreen> {
                           onSaved: (v) => _password = v!,
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _showForgotPasswordDialog,
+                          child: Text('Forgot Password?', style: TextStyle(color: Colors.indigo.shade700)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       StaggeredEntry(
                         index: 4,
                         child: SizedBox(
